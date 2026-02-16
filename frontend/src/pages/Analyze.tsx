@@ -414,82 +414,203 @@ export default function Analyze() {
                                 </div>
 
                                 <div className="p-6 space-y-5">
-                                    {/* Summary */}
+                                    {/* Summary — rendered with markdown-light */}
                                     <div>
                                         <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                                             <Sparkles size={14} className="text-blue-500" /> Professional Summary
                                         </h3>
-                                        <p className="text-slate-600 text-sm leading-relaxed bg-slate-50 p-4 rounded-lg border border-slate-100">
-                                            {result.summary}
-                                        </p>
+                                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                                            <RenderSummary text={typeof result.summary === 'string' ? result.summary : JSON.stringify(result.summary)} />
+                                        </div>
                                     </div>
 
-                                    {/* Skills */}
-                                    <div>
-                                        <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                                            <Award size={14} className="text-blue-500" /> Skills ({result.skills_data?.skills?.length || 0})
-                                        </h3>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {result.skills_data?.skills?.map((skill: string, i: number) => (
-                                                <span key={i} className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100">
-                                                    {skill}
-                                                </span>
-                                            ))}
+                                    {/* Quick stats row */}
+                                    <div className="grid grid-cols-4 gap-3">
+                                        <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 text-center">
+                                            <Clock size={16} className="text-blue-500 mx-auto mb-1" />
+                                            <p className="text-xl font-bold text-slate-800">{result.skills_data?.experience_years || 0}</p>
+                                            <p className="text-[10px] text-slate-500 uppercase font-semibold">Years Exp.</p>
                                         </div>
-                                        {result.skills_data?.semantic_matches && result.skills_data.semantic_matches.length > 0 && (
-                                            <p className="text-[11px] text-slate-400 mt-2">
-                                                + {result.skills_data.semantic_matches.length} skills found via semantic analysis
-                                            </p>
-                                        )}
+                                        <div className="bg-indigo-50 rounded-xl p-3 border border-indigo-100 text-center">
+                                            <GraduationCap size={16} className="text-indigo-500 mx-auto mb-1" />
+                                            <p className="text-xl font-bold text-slate-800">{result.skills_data?.education?.length || 0}</p>
+                                            <p className="text-[10px] text-slate-500 uppercase font-semibold">Degrees</p>
+                                        </div>
+                                        <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100 text-center">
+                                            <Award size={16} className="text-emerald-500 mx-auto mb-1" />
+                                            <p className="text-xl font-bold text-slate-800">{result.skills_data?.skills?.length || 0}</p>
+                                            <p className="text-[10px] text-slate-500 uppercase font-semibold">Skills</p>
+                                        </div>
+                                        <div className="bg-amber-50 rounded-xl p-3 border border-amber-100 text-center">
+                                            <FolderOpen size={16} className="text-amber-500 mx-auto mb-1" />
+                                            <p className="text-xl font-bold text-slate-800">{result.skills_data?.projects_count || 0}</p>
+                                            <p className="text-[10px] text-slate-500 uppercase font-semibold">Projects</p>
+                                        </div>
                                     </div>
 
-                                    {/* Experience & Education grid */}
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Clock size={15} className="text-blue-500" />
-                                                <span className="text-xs font-semibold text-slate-500 uppercase">Experience</span>
+                                    {/* Skills by category */}
+                                    {result.skills_data?.skill_categories && Object.keys(result.skills_data.skill_categories).length > 0 ? (
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                                <Layers size={14} className="text-blue-500" /> Skills by Category
+                                            </h3>
+                                            <div className="space-y-3">
+                                                {Object.entries(result.skills_data.skill_categories).map(([cat, skills]) => (
+                                                    <div key={cat}>
+                                                        <p className="text-xs font-semibold text-slate-500 mb-1.5 flex items-center gap-1">
+                                                            <Code2 size={12} className="text-slate-400" />
+                                                            {cat}
+                                                            <span className="text-slate-300 font-normal">({skills.length})</span>
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {skills.map((skill: string, i: number) => (
+                                                                <span key={i} className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100">
+                                                                    {skill}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                            <p className="text-2xl font-bold text-slate-800">
-                                                {result.skills_data?.experience_years || 0}
-                                                <span className="text-sm font-normal text-slate-400 ml-1">years</span>
-                                            </p>
+                                            {/* Uncategorized skills (from Skills section parsing) */}
+                                            {(() => {
+                                                const catSkills = new Set(
+                                                    Object.values(result.skills_data.skill_categories || {}).flat().map((s: string) => s.toLowerCase())
+                                                );
+                                                const extra = (result.skills_data?.skills || []).filter(s => !catSkills.has(s.toLowerCase()));
+                                                if (extra.length === 0) return null;
+                                                return (
+                                                    <div className="mt-3">
+                                                        <p className="text-xs font-semibold text-slate-500 mb-1.5 flex items-center gap-1">
+                                                            <Hash size={12} className="text-slate-400" />
+                                                            Other Skills
+                                                            <span className="text-slate-300 font-normal">({extra.length})</span>
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {extra.map((skill: string, i: number) => (
+                                                                <span key={i} className="px-2.5 py-1 bg-slate-50 text-slate-600 rounded-full text-xs font-medium border border-slate-200">
+                                                                    {skill}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                            {result.skills_data?.semantic_matches && result.skills_data.semantic_matches.length > 0 && (
+                                                <p className="text-[11px] text-slate-400 mt-2">
+                                                    + {result.skills_data.semantic_matches.length} additional skills discovered via semantic analysis
+                                                </p>
+                                            )}
                                         </div>
-                                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <GraduationCap size={15} className="text-blue-500" />
-                                                <span className="text-xs font-semibold text-slate-500 uppercase">Education</span>
+                                    ) : (
+                                        /* Flat skills list fallback */
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                                <Award size={14} className="text-blue-500" /> Skills ({result.skills_data?.skills?.length || 0})
+                                            </h3>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {result.skills_data?.skills?.map((skill: string, i: number) => (
+                                                    <span key={i} className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100">
+                                                        {skill}
+                                                    </span>
+                                                ))}
                                             </div>
-                                            <p className="text-2xl font-bold text-slate-800">
-                                                {result.skills_data?.education?.length || 0}
-                                                <span className="text-sm font-normal text-slate-400 ml-1">degrees</span>
-                                            </p>
+                                            {result.skills_data?.semantic_matches && result.skills_data.semantic_matches.length > 0 && (
+                                                <p className="text-[11px] text-slate-400 mt-2">
+                                                    + {result.skills_data.semantic_matches.length} additional skills discovered via semantic analysis
+                                                </p>
+                                            )}
                                         </div>
-                                    </div>
+                                    )}
 
                                     {/* Education details */}
                                     {result.skills_data?.education && result.skills_data.education.length > 0 && (
-                                        <div className="space-y-2">
-                                            {result.skills_data.education.map((edu, i) => (
-                                                <div key={i} className="flex items-start gap-2 text-sm bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
-                                                    <GraduationCap size={14} className="text-slate-400 mt-0.5 shrink-0" />
-                                                    <div>
-                                                        <p className="font-medium text-slate-700">
-                                                            {edu.degree}{edu.field ? ` in ${edu.field}` : ''}
-                                                        </p>
-                                                        {edu.institution && (
-                                                            <p className="text-xs text-slate-400">{edu.institution}</p>
-                                                        )}
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                                <GraduationCap size={14} className="text-blue-500" /> Education
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {result.skills_data.education.map((edu, i) => (
+                                                    <div key={i} className="flex items-start gap-3 text-sm bg-slate-50 rounded-lg px-4 py-3 border border-slate-100">
+                                                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
+                                                            <GraduationCap size={14} className="text-indigo-500" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <p className="font-semibold text-slate-700">
+                                                                {edu.degree}{edu.field ? ` in ${edu.field}` : ''}
+                                                            </p>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                {edu.institution && (
+                                                                    <p className="text-xs text-slate-400">{edu.institution}</p>
+                                                                )}
+                                                                {edu.year && (
+                                                                    <span className="text-xs text-slate-300">•</span>
+                                                                )}
+                                                                {edu.year && (
+                                                                    <p className="text-xs text-slate-400">{edu.year}</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                ))}
+                                            </div>
                                         </div>
+                                    )}
+
+                                    {/* Certifications */}
+                                    {result.skills_data?.certifications && result.skills_data.certifications.length > 0 && (
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                                <BadgeCheck size={14} className="text-blue-500" /> Certifications
+                                            </h3>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {result.skills_data.certifications.map((cert, i) => (
+                                                    <span key={i} className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium border border-emerald-200">
+                                                        {cert}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Experience timeline info */}
+                                    {result.skills_data?.date_ranges && result.skills_data.date_ranges.length > 0 && (
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                                <Calendar size={14} className="text-blue-500" /> Career Timeline
+                                            </h3>
+                                            <div className="flex flex-wrap gap-2">
+                                                {result.skills_data.date_ranges.map(([start, end], i) => (
+                                                    <span key={i} className="px-2.5 py-1 bg-slate-50 text-slate-600 rounded-lg text-xs font-medium border border-slate-200">
+                                                        {new Date(start).toLocaleDateString('en', { month: 'short', year: 'numeric' })}
+                                                        {' → '}
+                                                        {new Date(end).toLocaleDateString('en', { month: 'short', year: 'numeric' })}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Raw CV text — expandable */}
+                                    {result.text && (
+                                        <details className="group">
+                                            <summary className="cursor-pointer text-sm font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5 hover:text-blue-600 transition-colors">
+                                                <FileText size={14} className="text-slate-400 group-hover:text-blue-500" />
+                                                Raw CV Text
+                                                <ChevronDown size={14} className="ml-auto group-open:rotate-180 transition-transform" />
+                                            </summary>
+                                            <div className="mt-2 bg-slate-50 p-4 rounded-lg border border-slate-100 max-h-64 overflow-y-auto">
+                                                <pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
+                                                    {result.text}
+                                                </pre>
+                                            </div>
+                                        </details>
                                     )}
 
                                     {/* Action: go to ranking */}
                                     <button
                                         onClick={() => setTab('rank')}
-                                        className="w-full flex items-center justify-center gap-2 bg-slate-100 text-slate-700 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-200 transition-colors border border-slate-200"
+                                        className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
                                     >
                                         <Award size={16} /> Rank this candidate for a job
                                     </button>
