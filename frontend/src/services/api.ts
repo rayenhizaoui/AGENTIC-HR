@@ -145,7 +145,7 @@ export const getCachedCVs = async () => {
 };
 
 export const deleteCV = async (filename: string) => {
-    const response = await api.delete(`/candidates/cached/${encodeURIComponent(filename)}`);
+    const response = await api.post('/candidates/cached/delete', null, { params: { filename } });
     return response.data;
 };
 

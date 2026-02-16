@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Optional
 import shutil
@@ -170,8 +170,8 @@ async def list_cached_cvs():
     }
 
 
-@router.delete("/cached/{filename:path}")
-async def delete_cached_cv(filename: str):
+@router.post("/cached/delete")
+async def delete_cached_cv(filename: str = Query(...)):
     """Delete a CV from the analysis cache and remove the uploaded file."""
     if filename not in _parsed_cv_cache:
         raise HTTPException(status_code=404, detail=f"CV '{filename}' not found in cache.")
