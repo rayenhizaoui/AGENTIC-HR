@@ -1,0 +1,48 @@
+Role: Senior Software Engineer / Senior AI Engineer
+Type: Offer Letter
+Category: Senior Tech Package
+
+---
+
+Dear {candidate_name},
+
+We are thrilled to extend this offer of employment for the position of {job_title} at {company_name}.
+
+After a thorough interview process, we were highly impressed by your technical expertise and problem-solving abilities. We believe you will be an outstanding addition to our engineering team.
+
+POSITION DETAILS:
+- Job Title: {job_title}
+- Department: Engineering
+- Location: {location}
+- Start Date: {start_date}
+- Contract Type: Full-time, Permanent
+- Reports To: VP of Engineering
+
+COMPENSATION PACKAGE:
+- Base Salary: {salary} {currency} per year
+- Performance Bonus: Up to 15% of base salary
+- Stock Options: Eligible after 6 months
+- Signing Bonus: As discussed
+
+BENEFITS:
+- Health, dental, and vision insurance (100% covered for employee)
+- 25 days paid vacation + public holidays
+- Remote work flexibility (up to 3 days/week)
+- Annual learning & development budget: 3,000 USD
+- Conference attendance sponsorship
+- Home office equipment allowance
+
+RESPONSIBILITIES:
+- Lead the design and implementation of scalable systems
+- Mentor junior engineers and conduct code reviews
+- Drive technical decisions and architecture improvements
+- Collaborate cross-functionally with product and data teams
+
+Please confirm your acceptance by {response_deadline}.
+
+We look forward to welcoming you to {company_name}!
+
+Best regards,
+{hiring_manager}
+Human Resources Department
+{company_name}

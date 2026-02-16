@@ -1,0 +1,44 @@
+Role: Junior Developer / Entry-Level Engineer
+Type: Offer Letter
+Category: Junior Developer Package
+
+---
+
+Dear {candidate_name},
+
+We are pleased to offer you the position of {job_title} at {company_name}.
+
+We were impressed by your enthusiasm, academic achievements, and early-career projects. We believe our team environment will be an excellent place for you to grow professionally.
+
+POSITION DETAILS:
+- Job Title: {job_title}
+- Department: Engineering
+- Location: {location}
+- Start Date: {start_date}
+- Contract Type: Full-time
+- Reports To: Team Lead
+
+COMPENSATION:
+- Base Salary: {salary} {currency} per year
+- Performance Review: After 6 months with potential salary adjustment
+
+BENEFITS:
+- Health insurance coverage
+- 20 days paid vacation + public holidays
+- Structured mentorship program
+- Access to online learning platforms (Coursera, Udemy, etc.)
+- Weekly team lunches
+
+WHAT WE EXPECT:
+- Contribute to development tasks under guidance of senior engineers
+- Participate in code reviews and team ceremonies
+- Continuously learn and improve your technical skills
+- Collaborate effectively with your team
+
+Please respond by {response_deadline} to confirm your acceptance.
+
+Welcome aboard!
+
+Best regards,
+{hiring_manager}
+{company_name}
