@@ -22,6 +22,12 @@ import {
     Star,
     XCircle,
     RefreshCw,
+    FolderOpen,
+    Code2,
+    Layers,
+    BadgeCheck,
+    Hash,
+    Calendar,
 } from 'lucide-react';
 import { uploadCV, getCachedCVs, rankCandidates } from '../services/api';
 
@@ -35,16 +41,23 @@ interface CachedCV {
 
 interface AnalysisResult {
     filename: string;
+    text: string;
     summary: string;
     skills_data: {
         skills: string[];
+        skill_categories?: Record<string, string[]>;
         experience_years: number;
-        education: { degree: string; field: string; institution: string }[];
+        education: { degree: string; field: string; institution: string; year?: number }[];
+        certifications?: string[];
+        projects_count?: number;
         candidate_name?: string;
         job_title?: string;
         semantic_matches?: { skill: string; score: number }[];
         synonym_expansions?: string[];
+        date_ranges?: [string, string][];
+        note?: string;
     };
+    skills: string[];
     pages: number;
     word_count: number;
     extraction_method: string;
@@ -53,6 +66,35 @@ interface AnalysisResult {
     candidate_name?: string;
     job_title?: string;
     total_experience?: number;
+}
+
+/* ═══════════════════ Markdown-light renderer ═══════════════════ */
+
+function RenderSummary({ text }: { text: string }) {
+    if (!text) return null;
+    const lines = text.split('\n');
+    return (
+        <div className="text-sm leading-relaxed text-slate-600 space-y-1.5">
+            {lines.map((line, i) => {
+                if (!line.trim()) return <div key={i} className="h-1" />;
+                // Render bold (**text**) and italic (*text*)
+                const rendered = line
+                    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-slate-800 font-semibold">$1</strong>')
+                    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em class="text-slate-500">$1</em>');
+                const isBullet = line.trimStart().startsWith('- ');
+                if (isBullet) {
+                    const content = rendered.replace(/^\s*-\s*/, '');
+                    return (
+                        <div key={i} className="flex items-start gap-2 pl-2">
+                            <span className="text-blue-400 mt-1.5 shrink-0">•</span>
+                            <span dangerouslySetInnerHTML={{ __html: content }} />
+                        </div>
+                    );
+                }
+                return <p key={i} dangerouslySetInnerHTML={{ __html: rendered }} />;
+            })}
+        </div>
+    );
 }
 
 interface RankingResult {
