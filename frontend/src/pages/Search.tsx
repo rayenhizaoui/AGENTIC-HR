@@ -1,5 +1,17 @@
 import { useState } from 'react';
-import { Search as SearchIcon, MapPin, Briefcase, ExternalLink } from 'lucide-react';
+import {
+    Search as SearchIcon,
+    MapPin,
+    Briefcase,
+    ExternalLink,
+    SlidersHorizontal,
+    Wifi,
+    Star,
+    X,
+    Loader2,
+    Globe,
+    Sparkles,
+} from 'lucide-react';
 import { searchJobs } from '../services/api';
 
 interface Job {
@@ -9,80 +21,386 @@ interface Job {
     link: string;
     source?: string;
     relevance?: number;
+    published?: string;
 }
+
+const ALL_SOURCES = ['Remote OK', 'We Work Remotely', 'Arbeitnow', 'The Muse'];
+
+const QUICK_SEARCHES = [
+    { label: 'Python Developer', icon: '🐍' },
+    { label: 'React Frontend', icon: '⚛️' },
+    { label: 'Data Scientist', icon: '📊' },
+    { label: 'DevOps Engineer', icon: '⚙️' },
+    { label: 'AI / ML Engineer', icon: '🤖' },
+    { label: 'Full Stack', icon: '🔗' },
+    { label: 'Mobile Developer', icon: '📱' },
+    { label: 'Cloud Architect', icon: '☁️' },
+];
+
+const SOURCE_COLORS: Record<string, string> = {
+    'Remote OK': 'bg-green-100 text-green-700',
+    'We Work Remotely': 'bg-purple-100 text-purple-700',
+    'Arbeitnow': 'bg-orange-100 text-orange-700',
+    'The Muse': 'bg-blue-100 text-blue-700',
+};
 
 export default function Search() {
     const [query, setQuery] = useState('');
+    const [location, setLocation] = useState('');
+    const [remoteOnly, setRemoteOnly] = useState(false);
+    const [experienceLevel, setExperienceLevel] = useState('any');
+    const [selectedSources, setSelectedSources] = useState<string[]>([...ALL_SOURCES]);
+    const [maxResults, setMaxResults] = useState(20);
+    const [showFilters, setShowFilters] = useState(false);
+
     const [results, setResults] = useState<Job[]>([]);
     const [loading, setLoading] = useState(false);
+    const [searched, setSearched] = useState(false);
+    const [meta, setMeta] = useState<{ keywords_used?: string[]; total_found?: number }>({});
 
-    const handleSearch = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!query.trim()) return;
+    const handleSearch = async (searchQuery?: string) => {
+        const q = searchQuery || query;
+        if (!q.trim()) return;
 
+        if (searchQuery) setQuery(searchQuery);
         setLoading(true);
+        setSearched(true);
+
         try {
-            const data = await searchJobs(query);
+            const data = await searchJobs(q, {
+                sources: selectedSources,
+                location: location || undefined,
+                remote_only: remoteOnly,
+                experience_level: experienceLevel !== 'any' ? experienceLevel : undefined,
+                max_results: maxResults,
+            });
             setResults(data.jobs || []);
+            setMeta({ keywords_used: data.keywords_used, total_found: data.total_found });
         } catch (error) {
             console.error(error);
+            setResults([]);
         } finally {
             setLoading(false);
         }
     };
 
+    const toggleSource = (source: string) => {
+        setSelectedSources((prev) =>
+            prev.includes(source) ? prev.filter((s) => s !== source) : [...prev, source]
+        );
+    };
+
+    const clearFilters = () => {
+        setLocation('');
+        setRemoteOnly(false);
+        setExperienceLevel('any');
+        setSelectedSources([...ALL_SOURCES]);
+        setMaxResults(20);
+    };
+
+    const hasActiveFilters =
+        location || remoteOnly || experienceLevel !== 'any' || selectedSources.length !== ALL_SOURCES.length || maxResults !== 20;
+
+    const relevanceColor = (score: number) => {
+        if (score >= 60) return 'text-green-600 bg-green-50';
+        if (score >= 30) return 'text-yellow-600 bg-yellow-50';
+        return 'text-slate-500 bg-slate-50';
+    };
+
     return (
         <div className="max-w-5xl mx-auto">
-            <h1 className="text-2xl font-bold mb-6 text-slate-800">Job Search</h1>
+            {/* ── Header ── */}
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <Globe className="text-blue-600" size={28} />
+                    Job Search
+                </h1>
+                <p className="text-slate-500 text-sm mt-1">
+                    Search across multiple job boards with smart filters
+                </p>
+            </div>
 
-            <form onSubmit={handleSearch} className="flex gap-3 mb-8">
-                <div className="relative flex-1">
-                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <input
-                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                        placeholder="Search by role, keywords, or skills..."
-                        value={query}
-                        onChange={e => setQuery(e.target.value)}
-                    />
+            {/* ── Search Bar ── */}
+            <form
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSearch();
+                }}
+                className="space-y-3"
+            >
+                <div className="flex gap-2">
+                    <div className="relative flex-1">
+                        <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                        <input
+                            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm text-sm"
+                            placeholder="Role, skills, or keywords — e.g. Python Developer, React, AI..."
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`px-3.5 py-3 rounded-xl border transition-colors flex items-center gap-1.5 text-sm font-medium ${
+                            showFilters || hasActiveFilters
+                                ? 'bg-blue-50 border-blue-200 text-blue-700'
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                    >
+                        <SlidersHorizontal size={18} />
+                        Filters
+                        {hasActiveFilters && (
+                            <span className="w-2 h-2 rounded-full bg-blue-600" />
+                        )}
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={loading || !query.trim()}
+                        className="bg-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-blue-700 disabled:opacity-40 transition-colors flex items-center gap-2 text-sm"
+                    >
+                        {loading ? <Loader2 size={18} className="animate-spin" /> : <SearchIcon size={18} />}
+                        {loading ? 'Searching...' : 'Search'}
+                    </button>
                 </div>
-                <button
-                    type="submit"
-                    disabled={loading}
-                    className="bg-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                >
-                    {loading ? 'Searching...' : 'Find Jobs'}
-                </button>
-            </form>
 
-            <div className="grid gap-4">
-                {results.map((job, idx) => (
-                    <div key={idx} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start">
+                {/* ── Filter Panel ── */}
+                {showFilters && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                                <Sparkles size={16} className="text-blue-500" />
+                                Smart Filters
+                            </h3>
+                            {hasActiveFilters && (
+                                <button
+                                    type="button"
+                                    onClick={clearFilters}
+                                    className="text-xs text-slate-500 hover:text-red-500 flex items-center gap-1 transition-colors"
+                                >
+                                    <X size={14} /> Reset all
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Location */}
                             <div>
-                                <h3 className="font-semibold text-lg text-slate-900">{job.title}</h3>
-                                <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
-                                    <span className="flex items-center gap-1"><Briefcase size={16} /> {job.company}</span>
-                                    <span className="flex items-center gap-1"><MapPin size={16} /> {job.location}</span>
+                                <label className="block text-xs font-medium text-slate-500 mb-1.5">Location</label>
+                                <div className="relative">
+                                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                    <input
+                                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        placeholder="City, country..."
+                                        value={location}
+                                        onChange={(e) => setLocation(e.target.value)}
+                                    />
                                 </div>
                             </div>
-                            <a
-                                href={job.link}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm font-medium"
+
+                            {/* Experience Level */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1.5">Experience</label>
+                                <select
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    value={experienceLevel}
+                                    onChange={(e) => setExperienceLevel(e.target.value)}
+                                >
+                                    <option value="any">All Levels</option>
+                                    <option value="junior">Junior / Entry</option>
+                                    <option value="mid">Mid-Level</option>
+                                    <option value="senior">Senior / Lead</option>
+                                </select>
+                            </div>
+
+                            {/* Max Results */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                                    Max results: {maxResults}
+                                </label>
+                                <input
+                                    type="range"
+                                    min={5}
+                                    max={50}
+                                    step={5}
+                                    value={maxResults}
+                                    onChange={(e) => setMaxResults(Number(e.target.value))}
+                                    className="w-full accent-blue-600 mt-1"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Remote Toggle */}
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setRemoteOnly(!remoteOnly)}
+                                className={`relative w-10 h-5 rounded-full transition-colors ${
+                                    remoteOnly ? 'bg-blue-600' : 'bg-slate-300'
+                                }`}
                             >
-                                Apply <ExternalLink size={14} />
-                            </a>
+                                <span
+                                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                                        remoteOnly ? 'translate-x-5' : ''
+                                    }`}
+                                />
+                            </button>
+                            <span className="text-sm text-slate-600 flex items-center gap-1.5">
+                                <Wifi size={15} className={remoteOnly ? 'text-blue-600' : 'text-slate-400'} />
+                                Remote only
+                            </span>
+                        </div>
+
+                        {/* Sources */}
+                        <div>
+                            <label className="block text-xs font-medium text-slate-500 mb-2">Job Boards</label>
+                            <div className="flex flex-wrap gap-2">
+                                {ALL_SOURCES.map((source) => {
+                                    const active = selectedSources.includes(source);
+                                    return (
+                                        <button
+                                            key={source}
+                                            type="button"
+                                            onClick={() => toggleSource(source)}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                                                active
+                                                    ? `${SOURCE_COLORS[source] || 'bg-blue-100 text-blue-700'} border-transparent`
+                                                    : 'bg-slate-50 text-slate-400 border-slate-200 line-through'
+                                            }`}
+                                        >
+                                            {source}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
-                ))}
-
-                {!loading && results.length === 0 && (
-                    <div className="text-center py-12 text-slate-400">
-                        Enter keywords to search for jobs across multiple remote boards.
-                    </div>
                 )}
-            </div>
+            </form>
+
+            {/* ── Quick Search Chips ── */}
+            {!searched && (
+                <div className="mt-6">
+                    <p className="text-xs font-medium text-slate-400 mb-2">QUICK SEARCH</p>
+                    <div className="flex flex-wrap gap-2">
+                        {QUICK_SEARCHES.map((item) => (
+                            <button
+                                key={item.label}
+                                onClick={() => handleSearch(item.label)}
+                                className="px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all flex items-center gap-1.5"
+                            >
+                                <span>{item.icon}</span>
+                                {item.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* ── Results Meta ── */}
+            {searched && !loading && (
+                <div className="mt-6 mb-4 flex items-center justify-between">
+                    <p className="text-sm text-slate-500">
+                        <span className="font-semibold text-slate-800">{meta.total_found || 0}</span> jobs found
+                        {meta.keywords_used && meta.keywords_used.length > 0 && (
+                            <span className="ml-2 text-xs text-slate-400">
+                                Keywords: {meta.keywords_used.slice(0, 6).join(', ')}
+                                {meta.keywords_used.length > 6 && '...'}
+                            </span>
+                        )}
+                    </p>
+                </div>
+            )}
+
+            {/* ── Loading Skeleton ── */}
+            {loading && (
+                <div className="mt-6 space-y-3">
+                    {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="bg-white p-5 rounded-xl border border-slate-200 animate-pulse">
+                            <div className="h-5 bg-slate-200 rounded w-2/3 mb-3" />
+                            <div className="flex gap-4">
+                                <div className="h-4 bg-slate-100 rounded w-24" />
+                                <div className="h-4 bg-slate-100 rounded w-20" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* ── Results ── */}
+            {!loading && (
+                <div className="mt-2 space-y-3">
+                    {results.map((job, idx) => (
+                        <div
+                            key={idx}
+                            className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all group"
+                        >
+                            <div className="flex justify-between items-start gap-4">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="font-semibold text-slate-900 truncate">{job.title}</h3>
+                                        {job.source && (
+                                            <span
+                                                className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                                                    SOURCE_COLORS[job.source] || 'bg-slate-100 text-slate-600'
+                                                }`}
+                                            >
+                                                {job.source}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
+                                        {job.company && (
+                                            <span className="flex items-center gap-1">
+                                                <Briefcase size={14} /> {job.company}
+                                            </span>
+                                        )}
+                                        <span className="flex items-center gap-1">
+                                            <MapPin size={14} /> {job.location || 'N/A'}
+                                        </span>
+                                        {job.relevance != null && job.relevance > 0 && (
+                                            <span
+                                                className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${relevanceColor(
+                                                    job.relevance
+                                                )}`}
+                                            >
+                                                <Star size={12} /> {job.relevance}%
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <a
+                                    href={job.link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="shrink-0 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-lg flex items-center gap-1.5 text-sm font-medium transition-colors opacity-80 group-hover:opacity-100"
+                                >
+                                    Apply <ExternalLink size={14} />
+                                </a>
+                            </div>
+                        </div>
+                    ))}
+
+                    {searched && !loading && results.length === 0 && (
+                        <div className="text-center py-16">
+                            <SearchIcon className="mx-auto text-slate-300 mb-3" size={40} />
+                            <p className="text-slate-500 font-medium">No jobs found</p>
+                            <p className="text-slate-400 text-sm mt-1">
+                                Try broadening your search or adjusting the filters
+                            </p>
+                        </div>
+                    )}
+
+                    {!searched && (
+                        <div className="text-center py-16">
+                            <Globe className="mx-auto text-slate-300 mb-3" size={40} />
+                            <p className="text-slate-500 font-medium">Search across multiple job boards</p>
+                            <p className="text-slate-400 text-sm mt-1">
+                                Enter keywords or click a quick search above to start
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

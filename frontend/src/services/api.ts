@@ -88,8 +88,20 @@ export class ChatWebSocket {
 }
 
 // ── Job search ────────────────────────────────────────────────
-export const searchJobs = async (query: string, sources?: string[]) => {
-    const response = await api.post('/search', { query, sources });
+export interface SearchFilters {
+    query: string;
+    sources?: string[];
+    max_results?: number;
+    location?: string;
+    remote_only?: boolean;
+    experience_level?: string;
+}
+
+export const searchJobs = async (query: string, filters?: Partial<SearchFilters>) => {
+    const response = await api.post('/search', {
+        query,
+        ...filters,
+    });
     return response.data;
 };
 
