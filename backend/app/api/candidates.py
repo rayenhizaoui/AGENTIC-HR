@@ -170,6 +170,22 @@ async def list_cached_cvs():
     }
 
 
+@router.delete("/cached/{filename}")
+async def delete_cached_cv(filename: str):
+    """Delete a CV from the analysis cache and remove the uploaded file."""
+    if filename not in _parsed_cv_cache:
+        raise HTTPException(status_code=404, detail=f"CV '{filename}' not found in cache.")
+
+    del _parsed_cv_cache[filename]
+
+    # Also remove the uploaded file from disk
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    return {"deleted": filename, "remaining": len(_parsed_cv_cache)}
+
+
 # Helper function for agent access
 def get_cv_cache():
     """Returns the CV cache for agent access."""

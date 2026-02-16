@@ -144,6 +144,11 @@ export const getCachedCVs = async () => {
     return response.data;
 };
 
+export const deleteCV = async (filename: string) => {
+    const response = await api.delete(`/candidates/cached/${encodeURIComponent(filename)}`);
+    return response.data;
+};
+
 // ── Hiring / Offer generation ─────────────────────────────────
 export const generateOffer = async (data: any) => {
     const response = await api.post('/hiring/offer', data);

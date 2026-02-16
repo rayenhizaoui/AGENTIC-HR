@@ -29,7 +29,7 @@ import {
     Hash,
     Calendar,
 } from 'lucide-react';
-import { uploadCV, getCachedCVs, rankCandidates } from '../services/api';
+import { uploadCV, getCachedCVs, rankCandidates, deleteCV } from '../services/api';
 
 /* ═══════════════════ Types ═══════════════════ */
 
@@ -691,6 +691,21 @@ export default function Analyze() {
                                                 </p>
                                             )}
                                         </div>
+                                        <button
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                try {
+                                                    await deleteCV(cv.filename);
+                                                    setCachedCVs(prev => prev.filter(c => c.filename !== cv.filename));
+                                                } catch {
+                                                    alert('Failed to delete CV');
+                                                }
+                                            }}
+                                            title="Delete CV"
+                                            className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                                        >
+                                            <Trash2 size={15} />
+                                        </button>
                                     </div>
                                 </div>
                             ))}
