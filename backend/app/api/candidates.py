@@ -170,7 +170,7 @@ async def list_cached_cvs():
     }
 
 
-@router.delete("/cached/{filename}")
+@router.delete("/cached/{filename:path}")
 async def delete_cached_cv(filename: str):
     """Delete a CV from the analysis cache and remove the uploaded file."""
     if filename not in _parsed_cv_cache:
