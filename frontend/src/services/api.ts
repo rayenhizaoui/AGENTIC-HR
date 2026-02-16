@@ -150,4 +150,12 @@ export const generateOffer = async (data: any) => {
     return response.data;
 };
 
+export const checkSalary = async (role: string, offeredSalary: number) => {
+    const response = await api.post('/hiring/salary-check', {
+        role,
+        offered_salary: offeredSalary,
+    });
+    return response.data;
+};
+
 export default api;
