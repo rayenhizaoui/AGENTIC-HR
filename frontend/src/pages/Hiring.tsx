@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { generateOffer, checkSalary } from '../services/api';
 import {
     Loader2,
@@ -33,6 +33,18 @@ interface SalaryResult {
     recommendation: string;
 }
 
+interface FormData {
+    candidate_name: string;
+    role: string;
+    department: string;
+    location: string;
+    contract_type: string;
+    salary: string;
+    currency: string;
+    start_date: string;
+    hiring_manager: string;
+}
+
 type Step = 'details' | 'compensation' | 'review';
 
 const STEPS: { key: Step; label: string; icon: React.ElementType }[] = [
@@ -45,12 +57,164 @@ const CONTRACT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Internship', 'Fre
 const DEPARTMENTS = ['Engineering', 'Data Science', 'Product', 'Design', 'Marketing', 'Operations', 'HR', 'Finance'];
 const CURRENCIES = ['USD', 'EUR', 'TND', 'GBP', 'CAD'];
 
-/* ──────────────────────── Component ─────────────────────── */
+/* ────────── Reusable sub-components (outside main component) ────────── */
+
+function FormInput({ label, icon: Icon, ...props }: any) {
+    return (
+        <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{label}</label>
+            <div className="relative">
+                {Icon && <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />}
+                <input
+                    {...props}
+                    className={`w-full ${Icon ? 'pl-10' : 'pl-3'} pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow`}
+                />
+            </div>
+        </div>
+    );
+}
+
+function FormSelect({ label, icon: Icon, options, ...props }: any) {
+    return (
+        <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{label}</label>
+            <div className="relative">
+                {Icon && <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />}
+                <select
+                    {...props}
+                    className={`w-full ${Icon ? 'pl-10' : 'pl-3'} pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none`}
+                >
+                    {options.map((o: string) => <option key={o} value={o}>{o}</option>)}
+                </select>
+            </div>
+        </div>
+    );
+}
+
+function StepperBar({ step, currentIdx, onStepClick }: { step: Step; currentIdx: number; onStepClick: (s: Step) => void }) {
+    return (
+        <div className="flex items-center gap-1 mb-8">
+            {STEPS.map((s, i) => {
+                const Icon = s.icon;
+                const isActive = s.key === step;
+                const isDone = i < currentIdx;
+                return (
+                    <div key={s.key} className="flex items-center gap-1 flex-1">
+                        <button
+                            onClick={() => { if (isDone) onStepClick(s.key); }}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all w-full ${
+                                isActive
+                                    ? 'bg-blue-600 text-white shadow-md'
+                                    : isDone
+                                        ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 cursor-pointer'
+                                        : 'bg-slate-100 text-slate-400 cursor-default'
+                            }`}
+                        >
+                            {isDone ? <CheckCircle2 size={16} /> : <Icon size={16} />}
+                            <span className="hidden sm:inline">{s.label}</span>
+                        </button>
+                        {i < STEPS.length - 1 && <ChevronRight size={16} className="text-slate-300 shrink-0" />}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function SalaryGauge({ result, salaryStr }: { result: SalaryResult; salaryStr: string }) {
+    if (!result.market_min || !result.market_max || !result.market_median) {
+        return (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700 flex items-start gap-2">
+                <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+                <span>{result.recommendation}</span>
+            </div>
+        );
+    }
+
+    const salaryNum = parseFloat(salaryStr.replace(/[^0-9.]/g, ''));
+    const range = result.market_max - result.market_min;
+    const pct = Math.min(Math.max(((salaryNum - result.market_min) / range) * 100, 0), 100);
+
+    const flagColors: Record<string, string> = {
+        ok: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+        low: 'bg-red-50 border-red-200 text-red-700',
+        high: 'bg-amber-50 border-amber-200 text-amber-700',
+    };
+
+    return (
+        <div className={`border rounded-xl p-4 space-y-3 ${flagColors[result.flag] || flagColors.ok}`}>
+            <div className="flex items-center justify-between text-sm font-medium">
+                <span className="flex items-center gap-1.5">
+                    {result.flag === 'ok' && <CheckCircle2 size={16} />}
+                    {result.flag === 'low' && <TrendingDown size={16} />}
+                    {result.flag === 'high' && <TrendingUp size={16} />}
+                    Market Salary Check
+                </span>
+                <span className="text-xs font-normal opacity-70">
+                    {result.deviation_percent != null && `${result.deviation_percent > 0 ? '+' : ''}${result.deviation_percent}% from median`}
+                </span>
+            </div>
+
+            {/* Gauge bar */}
+            <div className="relative h-3 bg-white/50 rounded-full overflow-hidden border border-current/10">
+                <div className="absolute inset-0 flex">
+                    <div className="bg-red-200/60 h-full" style={{ width: '20%' }} />
+                    <div className="bg-emerald-200/60 h-full" style={{ width: '60%' }} />
+                    <div className="bg-amber-200/60 h-full" style={{ width: '20%' }} />
+                </div>
+                <div
+                    className="absolute top-0 w-3 h-3 bg-slate-800 rounded-full border-2 border-white shadow-md -translate-x-1/2"
+                    style={{ left: `${pct}%` }}
+                />
+            </div>
+
+            <div className="flex justify-between text-[11px] font-mono opacity-60">
+                <span>${result.market_min.toLocaleString()}</span>
+                <span>Median: ${result.market_median.toLocaleString()}</span>
+                <span>${result.market_max.toLocaleString()}</span>
+            </div>
+
+            <p className="text-xs leading-relaxed">{result.recommendation}</p>
+        </div>
+    );
+}
+
+function ReviewCard({ form }: { form: FormData }) {
+    return (
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <FileText size={16} className="text-blue-500" /> Offer Summary
+            </h3>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+                {[
+                    { label: 'Candidate', value: form.candidate_name, icon: User },
+                    { label: 'Position', value: form.role, icon: Briefcase },
+                    { label: 'Department', value: form.department, icon: Building2 },
+                    { label: 'Location', value: form.location, icon: MapPin },
+                    { label: 'Salary', value: `${form.salary} ${form.currency}`, icon: DollarSign },
+                    { label: 'Start Date', value: form.start_date || 'TBD', icon: Calendar },
+                    { label: 'Contract', value: form.contract_type, icon: FileText },
+                    { label: 'Hiring Manager', value: form.hiring_manager || 'TBD', icon: User },
+                ].map(item => (
+                    <div key={item.label} className="flex items-start gap-2 bg-slate-50 rounded-lg px-3 py-2">
+                        <item.icon size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                            <p className="text-[11px] text-slate-400 uppercase tracking-wide">{item.label}</p>
+                            <p className="font-medium text-slate-700 truncate">{item.value || '—'}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/* ──────────────────────── Main Component ─────────────────────── */
 
 export default function Hiring() {
     const [step, setStep] = useState<Step>('details');
 
-    const [form, setForm] = useState({
+    const [form, setForm] = useState<FormData>({
         candidate_name: '',
         role: '',
         department: 'Engineering',
@@ -71,9 +235,12 @@ export default function Hiring() {
     const [salaryResult, setSalaryResult] = useState<SalaryResult | null>(null);
     const [salaryLoading, setSalaryLoading] = useState(false);
 
-    /* ── Field updater ── */
-    const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-        setForm({ ...form, [field]: e.target.value });
+    /* ── Field updater (stable via useCallback + functional setState) ── */
+    const set = useCallback(
+        (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+            setForm(prev => ({ ...prev, [field]: e.target.value })),
+        []
+    );
 
     /* ── Salary check ── */
     const handleSalaryCheck = async () => {
@@ -139,152 +306,6 @@ export default function Hiring() {
         return true;
     };
 
-    /* ────────── Stepper bar ────────── */
-    const Stepper = () => (
-        <div className="flex items-center gap-1 mb-8">
-            {STEPS.map((s, i) => {
-                const Icon = s.icon;
-                const isActive = s.key === step;
-                const isDone = i < currentIdx;
-                return (
-                    <div key={s.key} className="flex items-center gap-1 flex-1">
-                        <button
-                            onClick={() => { if (isDone) setStep(s.key); }}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all w-full ${
-                                isActive
-                                    ? 'bg-blue-600 text-white shadow-md'
-                                    : isDone
-                                        ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 cursor-pointer'
-                                        : 'bg-slate-100 text-slate-400 cursor-default'
-                            }`}
-                        >
-                            {isDone ? <CheckCircle2 size={16} /> : <Icon size={16} />}
-                            <span className="hidden sm:inline">{s.label}</span>
-                        </button>
-                        {i < STEPS.length - 1 && <ChevronRight size={16} className="text-slate-300 shrink-0" />}
-                    </div>
-                );
-            })}
-        </div>
-    );
-
-    /* ────────── Input helper ────────── */
-    const Input = ({ label, icon: Icon, ...props }: any) => (
-        <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{label}</label>
-            <div className="relative">
-                {Icon && <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />}
-                <input
-                    {...props}
-                    className={`w-full ${Icon ? 'pl-10' : 'pl-3'} pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow`}
-                />
-            </div>
-        </div>
-    );
-
-    const Select = ({ label, icon: Icon, options, ...props }: any) => (
-        <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{label}</label>
-            <div className="relative">
-                {Icon && <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />}
-                <select
-                    {...props}
-                    className={`w-full ${Icon ? 'pl-10' : 'pl-3'} pr-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none`}
-                >
-                    {options.map((o: string) => <option key={o} value={o}>{o}</option>)}
-                </select>
-            </div>
-        </div>
-    );
-
-    /* ────────── Salary gauge ────────── */
-    const SalaryGauge = ({ result }: { result: SalaryResult }) => {
-        if (!result.market_min || !result.market_max || !result.market_median) {
-            return (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700 flex items-start gap-2">
-                    <AlertTriangle size={18} className="shrink-0 mt-0.5" />
-                    <span>{result.recommendation}</span>
-                </div>
-            );
-        }
-
-        const salaryNum = parseFloat(form.salary.replace(/[^0-9.]/g, ''));
-        const range = result.market_max - result.market_min;
-        const pct = Math.min(Math.max(((salaryNum - result.market_min) / range) * 100, 0), 100);
-
-        const flagColors: Record<string, string> = {
-            ok: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-            low: 'bg-red-50 border-red-200 text-red-700',
-            high: 'bg-amber-50 border-amber-200 text-amber-700',
-        };
-
-        return (
-            <div className={`border rounded-xl p-4 space-y-3 ${flagColors[result.flag] || flagColors.ok}`}>
-                <div className="flex items-center justify-between text-sm font-medium">
-                    <span className="flex items-center gap-1.5">
-                        {result.flag === 'ok' && <CheckCircle2 size={16} />}
-                        {result.flag === 'low' && <TrendingDown size={16} />}
-                        {result.flag === 'high' && <TrendingUp size={16} />}
-                        Market Salary Check
-                    </span>
-                    <span className="text-xs font-normal opacity-70">
-                        {result.deviation_percent != null && `${result.deviation_percent > 0 ? '+' : ''}${result.deviation_percent}% from median`}
-                    </span>
-                </div>
-
-                {/* Gauge bar */}
-                <div className="relative h-3 bg-white/50 rounded-full overflow-hidden border border-current/10">
-                    <div className="absolute inset-0 flex">
-                        <div className="bg-red-200/60 h-full" style={{ width: '20%' }} />
-                        <div className="bg-emerald-200/60 h-full" style={{ width: '60%' }} />
-                        <div className="bg-amber-200/60 h-full" style={{ width: '20%' }} />
-                    </div>
-                    <div
-                        className="absolute top-0 w-3 h-3 bg-slate-800 rounded-full border-2 border-white shadow-md -translate-x-1/2"
-                        style={{ left: `${pct}%` }}
-                    />
-                </div>
-
-                <div className="flex justify-between text-[11px] font-mono opacity-60">
-                    <span>${result.market_min.toLocaleString()}</span>
-                    <span>Median: ${result.market_median.toLocaleString()}</span>
-                    <span>${result.market_max.toLocaleString()}</span>
-                </div>
-
-                <p className="text-xs leading-relaxed">{result.recommendation}</p>
-            </div>
-        );
-    };
-
-    /* ────────── Review summary card ────────── */
-    const ReviewCard = () => (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
-            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <FileText size={16} className="text-blue-500" /> Offer Summary
-            </h3>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-                {[
-                    { label: 'Candidate', value: form.candidate_name, icon: User },
-                    { label: 'Position', value: form.role, icon: Briefcase },
-                    { label: 'Department', value: form.department, icon: Building2 },
-                    { label: 'Location', value: form.location, icon: MapPin },
-                    { label: 'Salary', value: `${form.salary} ${form.currency}`, icon: DollarSign },
-                    { label: 'Start Date', value: form.start_date || 'TBD', icon: Calendar },
-                    { label: 'Contract', value: form.contract_type, icon: FileText },
-                    { label: 'Hiring Manager', value: form.hiring_manager || 'TBD', icon: User },
-                ].map(item => (
-                    <div key={item.label} className="flex items-start gap-2 bg-slate-50 rounded-lg px-3 py-2">
-                        <item.icon size={14} className="text-slate-400 mt-0.5 shrink-0" />
-                        <div>
-                            <p className="text-[11px] text-slate-400 uppercase tracking-wide">{item.label}</p>
-                            <p className="font-medium text-slate-700 truncate">{item.value || '—'}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-
     /* ────────────────── RENDER ────────────────── */
     return (
         <div className="max-w-5xl mx-auto">
@@ -348,7 +369,7 @@ export default function Hiring() {
             ) : (
                 /* ── Stepper form ── */
                 <>
-                    <Stepper />
+                    <StepperBar step={step} currentIdx={currentIdx} onStepClick={setStep} />
 
                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                         {/* Left: Form (3 cols) */}
@@ -363,20 +384,20 @@ export default function Hiring() {
                                             <h2 className="text-lg font-semibold text-slate-800">Position Details</h2>
                                         </div>
 
-                                        <Input label="Candidate Full Name" icon={User} placeholder="e.g. Rayen Hizaoui"
+                                        <FormInput label="Candidate Full Name" icon={User} placeholder="e.g. Rayen Hizaoui"
                                             value={form.candidate_name} onChange={set('candidate_name')} required />
 
-                                        <Input label="Role / Position" icon={Briefcase} placeholder="e.g. Senior AI Engineer"
+                                        <FormInput label="Role / Position" icon={Briefcase} placeholder="e.g. Senior AI Engineer"
                                             value={form.role} onChange={set('role')} required />
 
                                         <div className="grid grid-cols-2 gap-4">
-                                            <Select label="Department" icon={Building2}
+                                            <FormSelect label="Department" icon={Building2}
                                                 options={DEPARTMENTS} value={form.department} onChange={set('department')} />
-                                            <Input label="Location" icon={MapPin} placeholder="e.g. Tunis, Tunisia"
+                                            <FormInput label="Location" icon={MapPin} placeholder="e.g. Tunis, Tunisia"
                                                 value={form.location} onChange={set('location')} />
                                         </div>
 
-                                        <Select label="Contract Type" icon={FileText}
+                                        <FormSelect label="Contract Type" icon={FileText}
                                             options={CONTRACT_TYPES} value={form.contract_type} onChange={set('contract_type')} />
                                     </>
                                 )}
@@ -391,10 +412,10 @@ export default function Hiring() {
 
                                         <div className="grid grid-cols-3 gap-4">
                                             <div className="col-span-2">
-                                                <Input label="Annual Salary" icon={DollarSign} placeholder="e.g. 85000"
+                                                <FormInput label="Annual Salary" icon={DollarSign} placeholder="e.g. 85000"
                                                     value={form.salary} onChange={set('salary')} required />
                                             </div>
-                                            <Select label="Currency" options={CURRENCIES}
+                                            <FormSelect label="Currency" options={CURRENCIES}
                                                 value={form.currency} onChange={set('currency')} />
                                         </div>
 
@@ -409,12 +430,12 @@ export default function Hiring() {
                                             Check Market Salary Range
                                         </button>
 
-                                        {salaryResult && <SalaryGauge result={salaryResult} />}
+                                        {salaryResult && <SalaryGauge result={salaryResult} salaryStr={form.salary} />}
 
                                         <div className="grid grid-cols-2 gap-4">
-                                            <Input label="Start Date" icon={Calendar} type="date"
+                                            <FormInput label="Start Date" icon={Calendar} type="date"
                                                 value={form.start_date} onChange={set('start_date')} />
-                                            <Input label="Hiring Manager" icon={User} placeholder="e.g. John Doe"
+                                            <FormInput label="Hiring Manager" icon={User} placeholder="e.g. John Doe"
                                                 value={form.hiring_manager} onChange={set('hiring_manager')} />
                                         </div>
                                     </>
@@ -428,7 +449,7 @@ export default function Hiring() {
                                             <h2 className="text-lg font-semibold text-slate-800">Review & Generate</h2>
                                         </div>
 
-                                        <ReviewCard />
+                                        <ReviewCard form={form} />
 
                                         {error && (
                                             <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex items-start gap-2">
