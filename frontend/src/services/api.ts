@@ -105,6 +105,21 @@ export const searchJobs = async (query: string, filters?: Partial<SearchFilters>
     return response.data;
 };
 
+// ── CV-based job recommendations ──────────────────────────────
+export interface RecommendFilters {
+    max_results?: number;
+    sources?: string[];
+    location?: string;
+    remote_only?: boolean;
+}
+
+export const recommendJobs = async (filters?: Partial<RecommendFilters>) => {
+    const response = await api.post('/search/recommend', {
+        ...filters,
+    });
+    return response.data;
+};
+
 // ── CV analysis ───────────────────────────────────────────────
 export const uploadCV = async (file: File) => {
     const formData = new FormData();

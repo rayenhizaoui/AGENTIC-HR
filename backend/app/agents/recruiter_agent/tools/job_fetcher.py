@@ -2,13 +2,14 @@
 Job Fetcher Tools
 
 Fetches job postings from RSS feeds and REST APIs.
-Supports: Remote OK, We Work Remotely, Arbeitnow, The Muse.
+Supports: Remote OK, We Work Remotely, Arbeitnow, The Muse, Remotive, Jobicy, Emploi.tn.
 
 Features:
 - Multi-keyword filtering with relevance scoring
 - Proper company name extraction from RSS
 - Synonym expansion (IA → AI, ML, etc.)
 - Results sorted by relevance
+- Tunisia / MENA job support via Emploi.tn + TanitJobs scraping
 
 Tools:
 - job_search_tool: Search for jobs across multiple sources
@@ -33,6 +34,12 @@ try:
     _HAS_REQUESTS = True
 except ImportError:
     _HAS_REQUESTS = False
+
+try:
+    from bs4 import BeautifulSoup
+    _HAS_BS4 = True
+except ImportError:
+    _HAS_BS4 = False
 
 from .job_cache import get_cached, set_cache
 
@@ -332,6 +339,238 @@ def fetch_themuse_jobs(keywords: list[str] = None, page: int = 1) -> list[dict]:
 
 
 # ═══════════════════════════════════════════════════════════════
+#  Remotive API (free, no key)
+# ═══════════════════════════════════════════════════════════════
+
+def fetch_remotive_jobs(keywords: list[str] = None, query: str = "") -> list[dict]:
+    """Fetch jobs from Remotive."""
+    if not _HAS_REQUESTS:
+        return []
+    try:
+        params = {}
+        if query:
+            params["search"] = query
+        resp = _requests.get("https://remotive.com/api/remote-jobs", params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        print(f"[API] Remotive error: {e}")
+        return []
+
+    jobs = []
+    for item in data.get("jobs", []):
+        title = item.get("title", "")
+        desc = _clean_html(item.get("description", ""))[:500]
+        company = item.get("company_name", "")
+        tags_str = " ".join(item.get("tags", []))
+        location = item.get("candidate_required_location", "Remote")
+
+        if keywords:
+            score = _relevance_score(title, desc, tags_str, keywords)
+            if score == 0:
+                continue
+        else:
+            score = 50
+
+        link = item.get("url", "")
+        jobs.append({
+            "title": title,
+            "company": company,
+            "location": location or "Remote",
+            "description": desc,
+            "link": link,
+            "published": item.get("publication_date", ""),
+            "source": "Remotive",
+            "tags": tags_str,
+            "relevance": score,
+            "hash": _job_hash(title, link),
+        })
+
+    jobs.sort(key=lambda x: x.get("relevance", 0), reverse=True)
+    return jobs
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Jobicy API (free, no key)
+# ═══════════════════════════════════════════════════════════════
+
+def fetch_jobicy_jobs(keywords: list[str] = None, query: str = "") -> list[dict]:
+    """Fetch jobs from Jobicy."""
+    if not _HAS_REQUESTS:
+        return []
+    try:
+        params = {"count": 50, "geo": "anywhere"}
+        if query:
+            params["tag"] = query.split()[0] if query.split() else ""
+        resp = _requests.get("https://jobicy.com/api/v2/remote-jobs", params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        print(f"[API] Jobicy error: {e}")
+        return []
+
+    jobs = []
+    for item in data.get("jobs", []):
+        title = item.get("jobTitle", "")
+        desc = _clean_html(item.get("jobDescription", ""))[:500]
+        company = item.get("companyName", "")
+        location = item.get("jobGeo", "Remote")
+        job_type = item.get("jobType", "")
+
+        if keywords:
+            score = _relevance_score(title, desc, job_type, keywords)
+            if score == 0:
+                continue
+        else:
+            score = 50
+
+        link = item.get("url", "")
+        jobs.append({
+            "title": title,
+            "company": company,
+            "location": location or "Remote",
+            "description": desc,
+            "link": link,
+            "published": item.get("pubDate", ""),
+            "source": "Jobicy",
+            "tags": job_type,
+            "relevance": score,
+            "hash": _job_hash(title, link),
+        })
+
+    jobs.sort(key=lambda x: x.get("relevance", 0), reverse=True)
+    return jobs
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Emploi.tn + TanitJobs (Tunisia) — HTML Scraping
+# ═══════════════════════════════════════════════════════════════
+
+def fetch_emploitn_jobs(keywords: list[str] = None, query: str = "") -> list[dict]:
+    """Scrape jobs from Emploi.tn and TanitJobs (Tunisian job boards)."""
+    if not _HAS_REQUESTS:
+        return []
+
+    jobs = []
+    search_term = query.replace(" ", "+") if query else "informatique"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+
+    # ---------- Emploi.tn ----------
+    try:
+        url = f"https://www.emploi.tn/recherche?q={search_term}"
+        resp = _requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+
+        if _HAS_BS4:
+            soup = BeautifulSoup(resp.text, "html.parser")
+            cards = soup.select(".card-job, .job-item, article.job, .result-item, .job-listing")
+            if not cards:
+                cards = soup.find_all("a", href=re.compile(r"/offre-emploi/|/job/"))
+
+            for card in cards[:30]:
+                try:
+                    if card.name == "a":
+                        title = card.get_text(strip=True)
+                        link = card.get("href", "")
+                        company, location = "", "Tunisia"
+                    else:
+                        title_el = card.select_one("h2, h3, .job-title, .title, a")
+                        title = title_el.get_text(strip=True) if title_el else ""
+                        link_el = card.select_one("a[href]")
+                        link = link_el.get("href", "") if link_el else ""
+                        company_el = card.select_one(".company, .company-name, .employer")
+                        company = company_el.get_text(strip=True) if company_el else ""
+                        loc_el = card.select_one(".location, .job-location, .city")
+                        location = loc_el.get_text(strip=True) if loc_el else "Tunisia"
+
+                    if not title or len(title) < 5:
+                        continue
+                    if link and not link.startswith("http"):
+                        link = f"https://www.emploi.tn{link}"
+
+                    score = _relevance_score(title, "", "", keywords) if keywords else 50
+                    if keywords and score == 0:
+                        score = 10  # Keep Tunisia jobs with low score
+
+                    jobs.append({
+                        "title": title, "company": company,
+                        "location": location or "Tunisia", "description": "",
+                        "link": link, "published": "", "source": "Emploi.tn",
+                        "tags": "", "relevance": score,
+                        "hash": _job_hash(title, link),
+                    })
+                except Exception:
+                    continue
+        else:
+            links = re.findall(r'href="(/offre-emploi/[^"]+)"[^>]*>([^<]+)', resp.text)
+            for href, title in links[:20]:
+                title = title.strip()
+                if len(title) < 5:
+                    continue
+                link = f"https://www.emploi.tn{href}"
+                score = _relevance_score(title, "", "", keywords) if keywords else 50
+                if keywords and score == 0:
+                    score = 10
+                jobs.append({
+                    "title": title, "company": "", "location": "Tunisia",
+                    "description": "", "link": link, "published": "",
+                    "source": "Emploi.tn", "tags": "", "relevance": score,
+                    "hash": _job_hash(title, link),
+                })
+    except Exception as e:
+        print(f"[Scrape] Emploi.tn error: {e}")
+
+    # ---------- TanitJobs ----------
+    try:
+        url2 = f"https://www.tanitjobs.com/search/?q={search_term}"
+        resp2 = _requests.get(url2, headers=headers, timeout=15)
+        if resp2.status_code == 200 and _HAS_BS4:
+            soup2 = BeautifulSoup(resp2.text, "html.parser")
+            cards2 = soup2.select(".job-item, .job-listing, article, .card")
+            if not cards2:
+                cards2 = soup2.find_all("a", href=re.compile(r"/job/|/offre/"))
+            for card in cards2[:20]:
+                try:
+                    if card.name == "a":
+                        title = card.get_text(strip=True)
+                        link = card.get("href", "")
+                        company = ""
+                    else:
+                        title_el = card.select_one("h2, h3, .title, a")
+                        title = title_el.get_text(strip=True) if title_el else ""
+                        link_el = card.select_one("a[href]")
+                        link = link_el.get("href", "") if link_el else ""
+                        company_el = card.select_one(".company, .employer")
+                        company = company_el.get_text(strip=True) if company_el else ""
+
+                    if not title or len(title) < 5:
+                        continue
+                    if link and not link.startswith("http"):
+                        link = f"https://www.tanitjobs.com{link}"
+
+                    score = _relevance_score(title, "", "", keywords) if keywords else 50
+                    if keywords and score == 0:
+                        score = 10
+
+                    jobs.append({
+                        "title": title, "company": company,
+                        "location": "Tunisia", "description": "",
+                        "link": link, "published": "",
+                        "source": "TanitJobs", "tags": "", "relevance": score,
+                        "hash": _job_hash(title, link),
+                    })
+                except Exception:
+                    continue
+    except Exception as e:
+        print(f"[Scrape] TanitJobs error: {e}")
+
+    jobs.sort(key=lambda x: x.get("relevance", 0), reverse=True)
+    return jobs
+
+
+# ═══════════════════════════════════════════════════════════════
 #  Unified Search Tool
 # ═══════════════════════════════════════════════════════════════
 
@@ -358,18 +597,16 @@ def job_search_tool(
     """
     Search for job postings across RSS feeds and APIs.
 
-    Use this when the user wants to find or search for jobs, e.g.:
-    "Search for Python developer jobs", "Find remote data science jobs"
-
     Args:
         query: Job search keywords (e.g. "python developer", "IA", "data scientist").
-        sources: Comma-separated sources or "all". Options: Remote OK, We Work Remotely, Arbeitnow, The Muse.
+        sources: Comma-separated sources or "all".
+                 Options: Remote OK, We Work Remotely, Arbeitnow, The Muse,
+                          Remotive, Jobicy, Emploi.tn.
         max_results: Maximum number of results to return (default 25).
 
     Returns:
-        Dict with 'jobs' list (title, company, location, link, source) and metadata.
+        Dict with 'jobs' list and metadata.
     """
-    # Expand query into smart keyword list
     keywords = _expand_query(query)
 
     requested = [s.strip().lower() for s in sources.split(",")] if sources != "all" else ["all"]
@@ -379,34 +616,38 @@ def job_search_tool(
     for feed_name, feed_url in RSS_FEEDS.items():
         if "all" not in requested and feed_name.lower() not in requested:
             continue
-
-        # Check cache first
         cached = get_cached(query, feed_name)
         if cached is not None:
             all_jobs.extend(cached)
             continue
-
         jobs = fetch_rss_jobs(feed_url, feed_name, keywords)
         set_cache(query, feed_name, jobs)
         all_jobs.extend(jobs)
 
     # --- APIs ---
-    if "all" in requested or "arbeitnow" in requested:
-        cached = get_cached(query, "Arbeitnow")
-        if cached is not None:
-            all_jobs.extend(cached)
-        else:
-            jobs = fetch_arbeitnow_jobs(keywords)
-            set_cache(query, "Arbeitnow", jobs)
-            all_jobs.extend(jobs)
+    def _fetch_source(name, fetcher, *args):
+        if "all" in requested or name.lower() in requested:
+            cached = get_cached(query, name)
+            if cached is not None:
+                all_jobs.extend(cached)
+            else:
+                jobs = fetcher(*args)
+                set_cache(query, name, jobs)
+                all_jobs.extend(jobs)
 
-    if "all" in requested or "the muse" in requested:
-        cached = get_cached(query, "The Muse")
+    _fetch_source("Arbeitnow", fetch_arbeitnow_jobs, keywords)
+    _fetch_source("The Muse", fetch_themuse_jobs, keywords)
+    _fetch_source("Remotive", fetch_remotive_jobs, keywords, query)
+    _fetch_source("Jobicy", fetch_jobicy_jobs, keywords, query)
+
+    # Tunisia sources — also triggered by "all"
+    if "all" in requested or "emploi.tn" in requested or "tunisia" in requested or "tanitjobs" in requested:
+        cached = get_cached(query, "Emploi.tn")
         if cached is not None:
             all_jobs.extend(cached)
         else:
-            jobs = fetch_themuse_jobs(keywords)
-            set_cache(query, "The Muse", jobs)
+            jobs = fetch_emploitn_jobs(keywords, query)
+            set_cache(query, "Emploi.tn", jobs)
             all_jobs.extend(jobs)
 
     # --- Deduplicate, sort by relevance, limit ---
@@ -424,6 +665,7 @@ def job_search_tool(
                 "title": j.get("title", ""),
                 "company": j.get("company", ""),
                 "location": j.get("location", ""),
+                "description": j.get("description", ""),
                 "link": j.get("link", ""),
                 "source": j.get("source", ""),
                 "published": j.get("published", ""),
