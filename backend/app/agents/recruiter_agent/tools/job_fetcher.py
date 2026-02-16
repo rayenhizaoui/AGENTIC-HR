@@ -2,7 +2,7 @@
 Job Fetcher Tools
 
 Fetches job postings from RSS feeds and REST APIs.
-Supports: Remote OK, We Work Remotely, Arbeitnow, The Muse, Remotive, Jobicy, Emploi.tn.
+Supports: Remote OK, We Work Remotely, Arbeitnow, The Muse, Remotive, Himalayas, Emploi.tn.
 
 Features:
 - Multi-keyword filtering with relevance scoring
@@ -391,40 +391,38 @@ def fetch_remotive_jobs(keywords: list[str] = None, query: str = "") -> list[dic
 
 
 # ═══════════════════════════════════════════════════════════════
-#  Jobicy API (free, no key)
+#  Himalayas API (free, no key)
 # ═══════════════════════════════════════════════════════════════
 
-def fetch_jobicy_jobs(keywords: list[str] = None, query: str = "") -> list[dict]:
-    """Fetch jobs from Jobicy."""
+def fetch_himalayas_jobs(keywords: list[str] = None, query: str = "") -> list[dict]:
+    """Fetch jobs from Himalayas.app (free, no key)."""
     if not _HAS_REQUESTS:
         return []
     try:
-        params = {"count": 50, "geo": "anywhere"}
-        if query:
-            params["tag"] = query.split()[0] if query.split() else ""
-        resp = _requests.get("https://jobicy.com/api/v2/remote-jobs", params=params, timeout=15)
+        params = {"limit": 50}
+        resp = _requests.get("https://himalayas.app/jobs/api", params=params, timeout=15)
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
-        print(f"[API] Jobicy error: {e}")
+        print(f"[API] Himalayas error: {e}")
         return []
 
     jobs = []
     for item in data.get("jobs", []):
-        title = item.get("jobTitle", "")
-        desc = _clean_html(item.get("jobDescription", ""))[:500]
+        title = item.get("title", "")
+        desc = _clean_html(item.get("description", ""))[:500]
         company = item.get("companyName", "")
-        location = item.get("jobGeo", "Remote")
-        job_type = item.get("jobType", "")
+        location = item.get("location", "Remote")
+        categories = " ".join(item.get("categories", []))
 
         if keywords:
-            score = _relevance_score(title, desc, job_type, keywords)
+            score = _relevance_score(title, desc, categories, keywords)
             if score == 0:
                 continue
         else:
             score = 50
 
-        link = item.get("url", "")
+        link = item.get("applicationLink", "") or item.get("url", "") or f"https://himalayas.app/jobs/{item.get('slug','')}"
         jobs.append({
             "title": title,
             "company": company,
@@ -432,8 +430,8 @@ def fetch_jobicy_jobs(keywords: list[str] = None, query: str = "") -> list[dict]
             "description": desc,
             "link": link,
             "published": item.get("pubDate", ""),
-            "source": "Jobicy",
-            "tags": job_type,
+            "source": "Himalayas",
+            "tags": categories,
             "relevance": score,
             "hash": _job_hash(title, link),
         })
@@ -601,7 +599,7 @@ def job_search_tool(
         query: Job search keywords (e.g. "python developer", "IA", "data scientist").
         sources: Comma-separated sources or "all".
                  Options: Remote OK, We Work Remotely, Arbeitnow, The Muse,
-                          Remotive, Jobicy, Emploi.tn.
+                          Remotive, Himalayas, Emploi.tn.
         max_results: Maximum number of results to return (default 25).
 
     Returns:
@@ -638,7 +636,7 @@ def job_search_tool(
     _fetch_source("Arbeitnow", fetch_arbeitnow_jobs, keywords)
     _fetch_source("The Muse", fetch_themuse_jobs, keywords)
     _fetch_source("Remotive", fetch_remotive_jobs, keywords, query)
-    _fetch_source("Jobicy", fetch_jobicy_jobs, keywords, query)
+    _fetch_source("Himalayas", fetch_himalayas_jobs, keywords, query)
 
     # Tunisia sources — also triggered by "all"
     if "all" in requested or "emploi.tn" in requested or "tunisia" in requested or "tanitjobs" in requested:

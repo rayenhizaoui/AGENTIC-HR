@@ -33,7 +33,7 @@ type TabMode = 'search' | 'recommend';
 
 const ALL_SOURCES = [
     'Remote OK', 'We Work Remotely', 'Arbeitnow', 'The Muse',
-    'Remotive', 'Jobicy', 'Emploi.tn',
+    'Remotive', 'Himalayas', 'Emploi.tn',
 ];
 
 const QUICK_SEARCHES = [
@@ -54,7 +54,7 @@ const SOURCE_COLORS: Record<string, string> = {
     'Arbeitnow': 'bg-orange-100 text-orange-700',
     'The Muse': 'bg-blue-100 text-blue-700',
     'Remotive': 'bg-teal-100 text-teal-700',
-    'Jobicy': 'bg-pink-100 text-pink-700',
+    'Himalayas': 'bg-pink-100 text-pink-700',
     'Emploi.tn': 'bg-red-100 text-red-700',
     'TanitJobs': 'bg-red-100 text-red-700',
 };
@@ -496,6 +496,182 @@ export default function Search() {
                         </div>
                     )}
                 </div>
+            )}
+            </>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════
+                CV MATCH TAB
+               ══════════════════════════════════════════════════════════ */}
+            {tabMode === 'recommend' && (
+            <>
+                {/* Recommend Hero */}
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-6 mb-6">
+                    <div className="flex items-start gap-4">
+                        <div className="bg-emerald-100 p-3 rounded-xl">
+                            <FileText className="text-emerald-600" size={28} />
+                        </div>
+                        <div className="flex-1">
+                            <h2 className="text-lg font-bold text-slate-800">CV-Based Job Matching</h2>
+                            <p className="text-sm text-slate-600 mt-1">
+                                Uses your uploaded CV to find the best matching jobs with an AI compatibility score.
+                                Upload a CV on the <strong>Analyze</strong> page first, then click below.
+                            </p>
+                            <div className="flex items-center gap-3 mt-4 flex-wrap">
+                                <button
+                                    onClick={handleRecommend}
+                                    disabled={recLoading}
+                                    className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-emerald-700 disabled:opacity-40 transition-colors flex items-center gap-2 text-sm"
+                                >
+                                    {recLoading ? (
+                                        <Loader2 size={18} className="animate-spin" />
+                                    ) : (
+                                        <Zap size={18} />
+                                    )}
+                                    {recLoading ? 'Matching...' : 'Find Matching Jobs'}
+                                </button>
+                                {recMeta.cv_filename && (
+                                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                                        <FileText size={14} /> CV: <strong>{recMeta.cv_filename}</strong>
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* CV Skills & Query Info */}
+                {recMeta.cv_skills && recMeta.cv_skills.length > 0 && (
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-medium text-slate-400">DETECTED SKILLS:</span>
+                        {recMeta.cv_skills.map((skill, i) => (
+                            <span
+                                key={i}
+                                className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200"
+                            >
+                                {skill}
+                            </span>
+                        ))}
+                    </div>
+                )}
+
+                {/* Error */}
+                {recError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-4 text-sm">
+                        {recError}
+                    </div>
+                )}
+
+                {/* Loading */}
+                {recLoading && (
+                    <div className="space-y-3">
+                        {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="bg-white p-5 rounded-xl border border-slate-200 animate-pulse">
+                                <div className="flex gap-3 items-center mb-3">
+                                    <div className="h-10 w-10 bg-emerald-100 rounded-lg" />
+                                    <div className="flex-1">
+                                        <div className="h-5 bg-slate-200 rounded w-2/3 mb-2" />
+                                        <div className="h-4 bg-slate-100 rounded w-1/3" />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Meta */}
+                {recSearched && !recLoading && (
+                    <div className="mb-4 flex items-center justify-between">
+                        <p className="text-sm text-slate-500">
+                            <span className="font-semibold text-slate-800">{recMeta.total_found || 0}</span> matching jobs found
+                        </p>
+                    </div>
+                )}
+
+                {/* Results */}
+                {!recLoading && (
+                    <div className="space-y-3">
+                        {recResults.map((job, idx) => (
+                            <div
+                                key={idx}
+                                className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all group"
+                            >
+                                <div className="flex justify-between items-start gap-4">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <h3 className="font-semibold text-slate-900 truncate">{job.title}</h3>
+                                            {job.source && (
+                                                <span
+                                                    className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                                                        SOURCE_COLORS[job.source] || 'bg-slate-100 text-slate-600'
+                                                    }`}
+                                                >
+                                                    {job.source}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
+                                            {job.company && (
+                                                <span className="flex items-center gap-1">
+                                                    <Briefcase size={14} /> {job.company}
+                                                </span>
+                                            )}
+                                            <span className="flex items-center gap-1">
+                                                <MapPin size={14} /> {job.location || 'N/A'}
+                                            </span>
+                                        </div>
+                                        {job.description && (
+                                            <p className="text-xs text-slate-400 mt-2 line-clamp-2">
+                                                {job.description.slice(0, 150)}
+                                                {job.description.length > 150 && '...'}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col items-end gap-2 shrink-0">
+                                        {job.compatibility != null && (
+                                            <span
+                                                className={`flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded-lg border ${compatibilityColor(
+                                                    job.compatibility
+                                                )}`}
+                                            >
+                                                <TrendingUp size={14} /> {job.compatibility}%
+                                            </span>
+                                        )}
+                                        <a
+                                            href={job.link}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-lg flex items-center gap-1.5 text-sm font-medium transition-colors opacity-80 group-hover:opacity-100"
+                                        >
+                                            Apply <ExternalLink size={14} />
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+
+                        {recSearched && !recLoading && recResults.length === 0 && !recError && (
+                            <div className="text-center py-16">
+                                <SearchIcon className="mx-auto text-slate-300 mb-3" size={40} />
+                                <p className="text-slate-500 font-medium">No matching jobs found</p>
+                                <p className="text-slate-400 text-sm mt-1">
+                                    Try uploading a different CV or broadening the source selection
+                                </p>
+                            </div>
+                        )}
+
+                        {!recSearched && (
+                            <div className="text-center py-12">
+                                <Zap className="mx-auto text-emerald-300 mb-3" size={40} />
+                                <p className="text-slate-500 font-medium">Click "Find Matching Jobs" to start</p>
+                                <p className="text-slate-400 text-sm mt-1">
+                                    Make sure you've uploaded a CV on the Analyze page
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </>
             )}
         </div>
     );

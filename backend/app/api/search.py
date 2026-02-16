@@ -114,7 +114,7 @@ async def search_jobs(query: SearchQuery):
 class RecommendRequest(BaseModel):
     max_results: int = 20
     sources: List[str] = ["Remote OK", "Arbeitnow", "We Work Remotely", "The Muse",
-                          "Remotive", "Jobicy", "Emploi.tn"]
+                          "Remotive", "Himalayas", "Emploi.tn"]
     location: Optional[str] = None
     remote_only: bool = False
 
