@@ -11,8 +11,11 @@ import {
     Loader2,
     Globe,
     Sparkles,
+    FileText,
+    TrendingUp,
+    Zap,
 } from 'lucide-react';
-import { searchJobs } from '../services/api';
+import { searchJobs, recommendJobs, getCachedCVs } from '../services/api';
 
 interface Job {
     title: string;
@@ -21,10 +24,17 @@ interface Job {
     link: string;
     source?: string;
     relevance?: number;
+    compatibility?: number;
+    description?: string;
     published?: string;
 }
 
-const ALL_SOURCES = ['Remote OK', 'We Work Remotely', 'Arbeitnow', 'The Muse'];
+type TabMode = 'search' | 'recommend';
+
+const ALL_SOURCES = [
+    'Remote OK', 'We Work Remotely', 'Arbeitnow', 'The Muse',
+    'Remotive', 'Jobicy', 'Emploi.tn',
+];
 
 const QUICK_SEARCHES = [
     { label: 'Python Developer', icon: '🐍' },
@@ -35,6 +45,7 @@ const QUICK_SEARCHES = [
     { label: 'Full Stack', icon: '🔗' },
     { label: 'Mobile Developer', icon: '📱' },
     { label: 'Cloud Architect', icon: '☁️' },
+    { label: 'Tunisia Software', icon: '🇹🇳' },
 ];
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -42,9 +53,14 @@ const SOURCE_COLORS: Record<string, string> = {
     'We Work Remotely': 'bg-purple-100 text-purple-700',
     'Arbeitnow': 'bg-orange-100 text-orange-700',
     'The Muse': 'bg-blue-100 text-blue-700',
+    'Remotive': 'bg-teal-100 text-teal-700',
+    'Jobicy': 'bg-pink-100 text-pink-700',
+    'Emploi.tn': 'bg-red-100 text-red-700',
+    'TanitJobs': 'bg-red-100 text-red-700',
 };
 
 export default function Search() {
+    const [tabMode, setTabMode] = useState<TabMode>('search');
     const [query, setQuery] = useState('');
     const [location, setLocation] = useState('');
     const [remoteOnly, setRemoteOnly] = useState(false);
@@ -57,6 +73,18 @@ export default function Search() {
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
     const [meta, setMeta] = useState<{ keywords_used?: string[]; total_found?: number }>({});
+
+    // Recommend state
+    const [recResults, setRecResults] = useState<Job[]>([]);
+    const [recLoading, setRecLoading] = useState(false);
+    const [recSearched, setRecSearched] = useState(false);
+    const [recMeta, setRecMeta] = useState<{
+        cv_filename?: string;
+        cv_skills?: string[];
+        search_query_used?: string;
+        total_found?: number;
+    }>({});
+    const [recError, setRecError] = useState('');
 
     const handleSearch = async (searchQuery?: string) => {
         const q = searchQuery || query;
@@ -98,6 +126,48 @@ export default function Search() {
         setMaxResults(20);
     };
 
+    const handleRecommend = async () => {
+        setRecLoading(true);
+        setRecSearched(true);
+        setRecError('');
+        try {
+            // Check if a CV exists first
+            const cached = await getCachedCVs();
+            if (!cached.candidates || cached.candidates.length === 0) {
+                setRecError('No CV uploaded yet. Go to the Analyze page and upload a CV first.');
+                setRecResults([]);
+                setRecLoading(false);
+                return;
+            }
+            const data = await recommendJobs({
+                sources: selectedSources,
+                max_results: maxResults,
+                location: location || undefined,
+                remote_only: remoteOnly,
+            });
+            setRecResults(data.jobs || []);
+            setRecMeta({
+                cv_filename: data.cv_filename,
+                cv_skills: data.cv_skills,
+                search_query_used: data.search_query_used,
+                total_found: data.total_found,
+            });
+        } catch (error: any) {
+            const msg = error?.response?.data?.detail || 'Failed to get recommendations.';
+            setRecError(msg);
+            setRecResults([]);
+        } finally {
+            setRecLoading(false);
+        }
+    };
+
+    const compatibilityColor = (score: number) => {
+        if (score >= 70) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+        if (score >= 50) return 'text-blue-700 bg-blue-50 border-blue-200';
+        if (score >= 30) return 'text-yellow-700 bg-yellow-50 border-yellow-200';
+        return 'text-slate-500 bg-slate-50 border-slate-200';
+    };
+
     const hasActiveFilters =
         location || remoteOnly || experienceLevel !== 'any' || selectedSources.length !== ALL_SOURCES.length || maxResults !== 20;
 
@@ -116,11 +186,37 @@ export default function Search() {
                     Job Search
                 </h1>
                 <p className="text-slate-500 text-sm mt-1">
-                    Search across multiple job boards with smart filters
+                    Search across 7+ job boards or get AI-matched recommendations from your CV
                 </p>
+
+                {/* Tab Switcher */}
+                <div className="flex gap-1 mt-4 bg-slate-100 p-1 rounded-xl w-fit">
+                    <button
+                        onClick={() => setTabMode('search')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                            tabMode === 'search'
+                                ? 'bg-white text-blue-700 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <SearchIcon size={16} /> Search Jobs
+                    </button>
+                    <button
+                        onClick={() => setTabMode('recommend')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                            tabMode === 'recommend'
+                                ? 'bg-white text-emerald-700 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <Zap size={16} /> CV Match
+                    </button>
+                </div>
             </div>
 
             {/* ── Search Bar ── */}
+            {tabMode === 'search' && (
+            <>
             <form
                 onSubmit={(e) => {
                     e.preventDefault();
