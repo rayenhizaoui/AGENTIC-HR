@@ -133,7 +133,7 @@ export default function Search() {
         try {
             // Check if a CV exists first
             const cached = await getCachedCVs();
-            if (!cached.candidates || cached.candidates.length === 0) {
+            if (!cached.cached_cvs || cached.cached_cvs.length === 0) {
                 setRecError('No CV uploaded yet. Go to the Analyze page and upload a CV first.');
                 setRecResults([]);
                 setRecLoading(false);
