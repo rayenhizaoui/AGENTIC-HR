@@ -1,7 +1,110 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Bot, Loader2, Paperclip, FileText, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { Send, Bot, Loader2, Paperclip, FileText, X, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { sendMessage, ChatWebSocket, uploadCV } from '../services/api';
 import { cn } from '../lib/utils';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+/* ═══════════════════ Markdown renderer ═══════════════════ */
+
+function ChatMarkdown({ content }: { content: string }) {
+    return (
+        <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+                /* ── Headings ── */
+                h1: ({ children }) => (
+                    <h1 className="text-base font-bold text-slate-800 mt-3 mb-1.5 first:mt-0">{children}</h1>
+                ),
+                h2: ({ children }) => (
+                    <h2 className="text-sm font-bold text-slate-800 mt-2.5 mb-1 first:mt-0">{children}</h2>
+                ),
+                h3: ({ children }) => (
+                    <h3 className="text-sm font-semibold text-slate-700 mt-2 mb-1 first:mt-0 flex items-center gap-1.5">{children}</h3>
+                ),
+                /* ── Paragraph ── */
+                p: ({ children }) => (
+                    <p className="text-sm leading-relaxed mb-1.5 last:mb-0">{children}</p>
+                ),
+                /* ── Bold / Italic ── */
+                strong: ({ children }) => (
+                    <strong className="font-semibold text-slate-800">{children}</strong>
+                ),
+                em: ({ children }) => (
+                    <em className="text-slate-500 not-italic">{children}</em>
+                ),
+                /* ── Links ── */
+                a: ({ href, children }) => (
+                    <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-700 underline decoration-blue-200 hover:decoration-blue-400 underline-offset-2 transition-colors inline-flex items-center gap-0.5"
+                    >
+                        {children}
+                        <ExternalLink size={10} className="shrink-0 opacity-50" />
+                    </a>
+                ),
+                /* ── Lists ── */
+                ul: ({ children }) => (
+                    <ul className="space-y-0.5 mb-1.5 ml-1">{children}</ul>
+                ),
+                ol: ({ children }) => (
+                    <ol className="space-y-0.5 mb-1.5 ml-1 list-decimal list-inside">{children}</ol>
+                ),
+                li: ({ children }) => (
+                    <li className="text-sm leading-relaxed flex items-start gap-1.5">
+                        <span className="text-blue-400 mt-1 shrink-0">•</span>
+                        <span className="flex-1">{children}</span>
+                    </li>
+                ),
+                /* ── Table ── */
+                table: ({ children }) => (
+                    <div className="my-2 rounded-lg border border-slate-200 overflow-hidden overflow-x-auto">
+                        <table className="w-full text-xs">{children}</table>
+                    </div>
+                ),
+                thead: ({ children }) => (
+                    <thead className="bg-slate-50 border-b border-slate-200">{children}</thead>
+                ),
+                tbody: ({ children }) => (
+                    <tbody className="divide-y divide-slate-100">{children}</tbody>
+                ),
+                tr: ({ children }) => (
+                    <tr className="hover:bg-blue-50/30 transition-colors">{children}</tr>
+                ),
+                th: ({ children }) => (
+                    <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{children}</th>
+                ),
+                td: ({ children }) => (
+                    <td className="px-3 py-2 text-slate-600 align-top">{children}</td>
+                ),
+                /* ── Code ── */
+                code: ({ className, children, ...props }) => {
+                    const isInline = !className;
+                    return isInline ? (
+                        <code className="bg-slate-100 text-indigo-600 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>{children}</code>
+                    ) : (
+                        <code className="block bg-slate-900 text-slate-100 p-3 rounded-lg text-xs font-mono overflow-x-auto my-1.5" {...props}>{children}</code>
+                    );
+                },
+                pre: ({ children }) => (
+                    <pre className="my-1.5">{children}</pre>
+                ),
+                /* ── Blockquote ── */
+                blockquote: ({ children }) => (
+                    <blockquote className="border-l-3 border-blue-300 pl-3 py-0.5 my-1.5 text-slate-500 italic">{children}</blockquote>
+                ),
+                /* ── Horizontal rule ── */
+                hr: () => (
+                    <hr className="my-2 border-slate-200" />
+                ),
+            }}
+        >
+            {content}
+        </ReactMarkdown>
+    );
+}
 
 interface Message {
     role: 'user' | 'assistant';
@@ -213,12 +316,12 @@ export default function Chat() {
                         <div className={cn('flex flex-col', msg.role === 'user' ? 'items-end' : 'items-start', 'max-w-[75%]')}>
                             {/* Bubble */}
                             <div className={cn(
-                                'px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap',
+                                'px-3 py-2 rounded-2xl text-sm leading-relaxed',
                                 msg.role === 'user'
-                                    ? 'bg-indigo-600 text-white rounded-br-md'
+                                    ? 'bg-indigo-600 text-white rounded-br-md whitespace-pre-wrap'
                                     : 'bg-white border border-slate-200 text-slate-700 rounded-bl-md shadow-sm'
                             )}>
-                                {msg.content}
+                                {msg.role === 'user' ? msg.content : <ChatMarkdown content={msg.content} />}
                             </div>
 
                             {/* Collapsible reasoning log */}

@@ -15,10 +15,10 @@ export default function Sidebar() {
     return (
         <div className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen p-4">
             <div className="mb-8 px-2 flex items-center gap-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
-                    A
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                    IHR
                 </div>
-                <h1 className="font-bold text-xl text-slate-800">Antigravity</h1>
+                <h1 className="font-bold text-xl text-slate-800">Intelligent HR</h1>
             </div>
 
             <nav className="flex-1 space-y-1">
